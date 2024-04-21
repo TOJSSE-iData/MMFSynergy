@@ -1,0 +1,14 @@
+tokenizer:
+  unk_token: <UNK>
+  cls_token: <CLS>
+  sep_token: <SEP>
+  pad_token: <PAD>
+  mask_token: <MASK>
+  type: BPE  # BPE, Unigram, WordPiece, WordLevel
+dataset:
+  train:
+    files:
+      - data/proc/v2/pretrain_protein/aa_sequence_pieces_3_train.txt
+      - data/proc/v2/pretrain_protein/aa_sequence_pieces_3_valid.txt
+      - data/proc/v2/pretrain_protein/aa_sequence_pieces_3_test.txt
+model_dir: output/v2/pretrain_protein/aa_tokenizer_bpe_pieces_3
