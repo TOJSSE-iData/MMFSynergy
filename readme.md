@@ -21,6 +21,7 @@ We provided several bash scripts to run experiments.
 
 - run\_exp\_{aa/smiles}\_encoders\_{mlm/simcse}.sh: Train micro encoders using AA sequences or SMILES strings with MLM/SimCSE task.
 - run\_exp\_macro.sh: Train the macro encoder.
+- run_exp_fusion: Fuse micro and macro information to generate features.
 - run_ncv.sh: Run starified nested cross-validation.
 
 ## Detailed configs
