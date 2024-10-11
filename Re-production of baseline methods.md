@@ -367,3 +367,103 @@ The hyperparameters that need to be selected in NCV are as follows:
 | LDCO, LCO, LDO | # mlp dim      | 1024 512     | Given by the code      |
 | LDCO, LCO, LDO | learning rate  | 0.001        | Given by the code      |
 | LDCO, LCO, LDO | # epochs       | 100          | 1/10 of O'Neil dataset |
+
+## DGSSynADR
+
+- [paper](https://academic.oup.com/bioinformatics/article/39/10/btad607/7301437?login=false)
+- codes and data could be found at the [repo](https://github.com/DHUDBlab/DGSSynADR)
+
+### O'Neil Dataset
+
+**Drug Features**
+
+1. We supplemented SMILES from DrugBank.
+2. Morgan fingerprints (1024 bits) are generated as drug features.
+3. We set learnable drug encodings according to the repo.
+
+**Cell Line Features**
+
+1. Cell line features are the gene expression data and gene mutation data of LINCS genes. 
+
+**Hyperparameters**
+
+The hyperparameters that need to be selected in NCV are as follows:
+
+| Scenario       | Hyperparamters             | Range          | Remark                                   |
+| -------------- | -------------------------- | -------------- | ---------------------------------------- |
+| LDCO, LCO, LDO | # drug emb                 | 1956           | Given by the code                        |
+| LDCO, LCO, LDO | # prot_emb_dim             | 16             | Given by the code                        |
+| LDCO, LCO, LDO | # residual_layers          | 32             | Given by the paper                       |
+| LDCO, LCO, LDO | # drug/prot attention rank | 64             | Given by the paper                       |
+| LDCO, LCO, LDO | # epochs                   | 200, 500, 1000 | Given by the code and tried by ourselves |
+| LDCO, LCO, LDO | # batch size               | 1024           | Given by the code                        |
+| LDCO, LCO, LDO | lr                         | 0.00005        | Given by the code                        |
+
+### NCI-ALMANAC Dataset
+
+**Drug Features**
+
+The same as they are in Section O'Neil Dataset.
+
+**Cell Line Features**
+
+The same as they are in Section O'Neil Dataset.
+
+**Hyperparameters**
+
+The hyperparameters that need to be selected in NCV are as follows:
+
+| Scenario       | Hyperparamters             | Range         | Remark             |
+| -------------- | -------------------------- | ------------- | ------------------ |
+| LDCO, LCO, LDO | # drug emb                 | 1956          | Given by the code  |
+| LDCO, LCO, LDO | # prot_emb_dim             | 16            | Given by the code  |
+| LDCO, LCO, LDO | # residual_layers          | 32            | Given by the paper |
+| LDCO, LCO, LDO | # drug/prot attention rank | 64            | Given by the paper |
+| LDCO, LCO, LDO | # epochs                   | 100, 200, 300 | Given by the code  |
+| LDCO, LCO, LDO | # batch size               | 1024          | Given by the code  |
+| LDCO, LCO, LDO | lr                         | 0.00005       | Given by the code  |
+
+## KGANSynergy
+
+- [paper](https://academic.oup.com/bib/article/24/3/bbad167/7147878?searchresult=1&login=false)
+- codes and data could be found at the [repo](https://github.com/juanerzz7/KGANSynergy)
+
+### O'Neil Dataset
+
+**Drug Features**
+
+1. From the code , drug features are learnable random generated embeddings.
+
+**Cell Line Features**
+
+1. From the code , cell line features are learnable random generated embeddings.
+
+**Hyperparameters**
+
+The hyperparameters that need to be selected in NCV are as follows:
+
+| Scenario       | Hyperparamters | Range             | Remark                                   |
+| -------------- | -------------- | ----------------- | ---------------------------------------- |
+| LDCO, LCO, LDO | # epochs       | 50, 100, 200, 300 | Given by the code and tried by ourselves |
+| LDCO, LCO, LDO | # batch size   | 32, 64, 128       | Given by the code and tried by ourselves |
+| LDCO, LCO, LDO | lr             | 0.0001            | Given by the code                        |
+
+### NCI-ALMANAC Dataset
+
+**Drug Features**
+
+The same as they are in Section O'Neil Dataset.
+
+**Cell Line Features**
+
+The same as they are in Section O'Neil Dataset.
+
+**Hyperparameters**
+
+The hyperparameters that need to be selected in NCV are as follows:
+
+| Scenario       | Hyperparamters | Range               | Remark                                   |
+| -------------- | -------------- | ------------------- | ---------------------------------------- |
+| LDCO, LCO, LDO | # epochs       | 20, 40, 60, 80, 100 | Given by the code and tried by ourselves |
+| LDCO, LCO, LDO | # batch size   | 32, 64, 128         | Given by the code and tried by ourselves |
+| LDCO, LCO, LDO | lr             | 0.001               | Tried by ourselves                       |
