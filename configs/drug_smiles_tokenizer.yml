@@ -1,0 +1,14 @@
+tokenizer:
+  unk_token: <UNK>
+  cls_token: <CLS>
+  sep_token: <SEP>
+  pad_token: <PAD>
+  mask_token: <MASK>
+  type: BPE  # BPE, Unigram, WordPiece, WordLevel
+dataset:
+  train:
+    files:
+      - data/proc/v3/pretrain_drug/smiles_train.txt
+      - data/proc/v3/pretrain_drug/smiles_valid.txt
+      - data/proc/v3/pretrain_drug/smiles_test.txt
+model_dir: output/v3/pretrain_drug/smiles_tokenizer_bpe

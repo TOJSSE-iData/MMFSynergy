@@ -1,0 +1,77 @@
+task: nested_cross_validation
+task_params:
+  candidate_hps:
+    - names: trainer.scheduler.params.num_warmup_steps
+      values:
+        - 3000
+        - 2000
+    - names: trainer.optimizer.lr
+      values:
+        - 2.e-4
+        - 1.e-4
+  gpus:
+    - 0
+    - 1
+    - 2
+    - 3
+    - 4
+    - 5
+    - 6
+    - 7
+  folds:
+    - 0
+    - 1
+    - 2
+    - 3
+    - 4
+dataset:
+  samples: data/proc/v7/oneil/samples_idx_dc.tsv
+  synergy_type: loewe
+  cell_protein_association: data/proc/v7/oneil/cell_line_protein_asso_up100dn100_idx.tsv
+  train:
+    loader:
+      batch_size: 256
+      shuffle: True
+      pin_memory: True
+  valid:
+    loader:
+      batch_size: 512
+      shuffle: False
+      pin_memory: True
+  test:
+    loader:
+      batch_size: 512
+      shuffle: False
+      pin_memory: True
+model:
+  hidden_size: 384
+  drug_size: 38
+  drug_hidden_size: 256
+  protein_size: 4871
+  protein_hidden_size: 256
+  project_with_bias: False
+  drug_feature_file: data/proc/v7/oneil/drug_feat.npy
+  protein_feature_file: data/proc/v7/oneil/protein_feat.npy
+  freeze_embedding: True
+  add_pooler: True
+  num_attention_heads: 8
+  num_hidden_layers: 3
+  intermediate_size: 1536
+  hidden_dropout_prob: 0.1
+  attention_probs_dropout_prob: 0.1
+  predict_head_dropout: 0.1
+  initializer_range: 0.025
+trainer:
+  max_seq_len: 256
+  padding: null  # max_length or null
+  patience: 100
+  num_epochs: 500
+  optimizer:
+    lr: 2.e-4
+    weight_decay: 1.e-3
+  scheduler:
+    name: constant_with_warmup  # "constant" "linear" "cosine" "cosine_with_restarts" "polynomial" "constant" "constant_with_warmup" "inverse_sqrt"
+    params:
+      num_training_steps: 30000  # 19322//256+1=75, *400=30000
+      num_warmup_steps: 2000
+model_dir: output/v7/ncv

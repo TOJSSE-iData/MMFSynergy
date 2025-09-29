@@ -1,0 +1,57 @@
+tokenizer:
+  model_dir: output/v2/pretrain_protein/aa_tokenizer_bpe_pieces_3
+  truncate: True
+  max_length: 512
+mlm:
+  mask_rate: 0.15
+  mask_token_rate: 0.8
+  random_token_rate: 0.1
+dataset:
+  train:
+    files:
+      - data/proc/v2/pretrain_protein/aa_sequence_pieces_3_train.txt
+    loader:
+      batch_size: 32
+      shuffle: True
+      pin_memory: True
+  valid:
+    files:
+      - data/proc/v2/pretrain_protein/aa_sequence_pieces_3_valid.txt
+    loader:
+      batch_size: 128
+      shuffle: False
+      pin_memory: True
+  test:
+    files:
+      - data/proc/v2/pretrain_protein/aa_sequence_pieces_3_test.txt
+    loader:
+      batch_size: 128
+      shuffle: False
+      pin_memory: True
+model:
+  vocab_size: null  # set null to use tokenizer vocab size
+  hidden_size: 128
+  num_attention_heads: 8
+  num_hidden_layers: 6
+  intermediate_size: 1024
+  hidden_dropout_prob: 0.1
+  attention_probs_dropout_prob: 0.1
+  add_pooler: False
+trainer:
+  num_epochs: 10
+  optimizer:
+    lr: 1.e-4
+    weight_decay: 1.e-3
+  scheduler:
+    name: constant_with_warmup  # "constant" "linear" "cosine" "cosine_with_restarts" "polynomial" "constant" "constant_with_warmup" "inverse_sqrt"
+    params:
+      num_training_steps: 58500  # 187182//32+1=5850, *10~=58500
+      num_warmup_steps: 2000
+  print_per_steps: 1000
+  eval_per_steps: 1000
+  save_per_steps: 1000
+  patience: 5
+  max_keep: 5
+  max_keep_best: 5
+gpu: 0
+model_dir: output/v2/pretrain_protein/aa_encoder
