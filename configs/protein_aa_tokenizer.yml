@@ -8,7 +8,7 @@ tokenizer:
 dataset:
   train:
     files:
-      - data/proc/v2/pretrain_protein/aa_sequence_pieces_3_train.txt
-      - data/proc/v2/pretrain_protein/aa_sequence_pieces_3_valid.txt
-      - data/proc/v2/pretrain_protein/aa_sequence_pieces_3_test.txt
-model_dir: output/v2/pretrain_protein/aa_tokenizer_bpe_pieces_3
+      - data/proc/pretrain_protein/aa_sequence_pieces_3_train.txt
+      - data/proc/pretrain_protein/aa_sequence_pieces_3_valid.txt
+      - data/proc/pretrain_protein/aa_sequence_pieces_3_test.txt
+model_dir: output/pretrain_protein/aa_tokenizer_bpe_pieces_3

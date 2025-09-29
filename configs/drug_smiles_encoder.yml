@@ -1,5 +1,5 @@
 tokenizer:
-  model_dir: output/v3/pretrain_drug/smiles_tokenizer_bpe
+  model_dir: output/pretrain_drug/smiles_tokenizer_bpe
   truncate: True
   max_length: 256
 mlm:
@@ -9,21 +9,21 @@ mlm:
 dataset:
   train:
     files:
-      - data/proc/v3/pretrain_drug/smiles_train.txt
+      - data/proc/pretrain_drug/smiles_train.txt
     loader:
       batch_size: 64
       shuffle: True
       pin_memory: True
   valid:
     files:
-      - data/proc/v3/pretrain_drug/smiles_valid.txt
+      - data/proc/pretrain_drug/smiles_valid.txt
     loader:
       batch_size: 128
       shuffle: False
       pin_memory: True
   test:
     files:
-      - data/proc/v3/pretrain_drug/smiles_test.txt
+      - data/proc/pretrain_drug/smiles_test.txt
     loader:
       batch_size: 128
       shuffle: False
@@ -54,4 +54,4 @@ trainer:
   max_keep: 5
   max_keep_best: 5
 gpu: 0
-model_dir: output/v3/pretrain_drug/aa_encoder
+model_dir: output/pretrain_drug/aa_encoder

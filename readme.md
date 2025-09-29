@@ -19,6 +19,7 @@ Use `pip3 install -r requirements.txt` to install modules.
 
 We provided several bash scripts to run experiments.
 
+- run `python3 train_tokenizer.py configs/{protein_aa/drug_smiles}_tokenizer.yml` to train AA/SMILES tokenizers, see the code for detail arguments.
 - run\_exp\_{aa/smiles}\_encoders\_{mlm/simcse}.sh: Train micro encoders using AA sequences or SMILES strings with MLM/SimCSE task.
 - run\_exp\_macro.sh: Train the macro encoder.
 - run_exp_fusion: Fuse micro and macro information to generate features.

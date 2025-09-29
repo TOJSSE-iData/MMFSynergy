@@ -1,5 +1,5 @@
 tokenizer:
-  model_dir: output/v2/pretrain_protein/aa_tokenizer_bpe_pieces_3
+  model_dir: output/pretrain_protein/aa_tokenizer_bpe_pieces_3
   truncate: True
   max_length: 512
 mlm:
@@ -9,21 +9,21 @@ mlm:
 dataset:
   train:
     files:
-      - data/proc/v2/pretrain_protein/aa_sequence_pieces_3_train.txt
+      - data/proc/pretrain_protein/aa_sequence_pieces_3_train.txt
     loader:
       batch_size: 32
       shuffle: True
       pin_memory: True
   valid:
     files:
-      - data/proc/v2/pretrain_protein/aa_sequence_pieces_3_valid.txt
+      - data/proc/pretrain_protein/aa_sequence_pieces_3_valid.txt
     loader:
       batch_size: 128
       shuffle: False
       pin_memory: True
   test:
     files:
-      - data/proc/v2/pretrain_protein/aa_sequence_pieces_3_test.txt
+      - data/proc/pretrain_protein/aa_sequence_pieces_3_test.txt
     loader:
       batch_size: 128
       shuffle: False
@@ -54,4 +54,4 @@ trainer:
   max_keep: 5
   max_keep_best: 5
 gpu: 0
-model_dir: output/v2/pretrain_protein/aa_encoder
+model_dir: output/pretrain_protein/aa_encoder
