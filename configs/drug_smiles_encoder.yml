@@ -45,7 +45,7 @@ trainer:
   scheduler:
     name: constant_with_warmup  # "constant" "linear" "cosine" "cosine_with_restarts" "polynomial" "constant" "constant_with_warmup" "inverse_sqrt"
     params:
-      num_training_steps: 72927  # 1555745//64+1=24309, *3~=72927
+      num_training_steps: 67500  # (1728606//128+1)*5~=67529
       num_warmup_steps: 2000
   print_per_steps: 1000
   eval_per_steps: 1000
@@ -54,4 +54,4 @@ trainer:
   max_keep: 5
   max_keep_best: 5
 gpu: 0
-model_dir: output/pretrain_drug/aa_encoder
+model_dir: output/pretrain_drug/smiles_encoder

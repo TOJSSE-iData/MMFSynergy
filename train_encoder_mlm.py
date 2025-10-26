@@ -39,7 +39,7 @@ def get_dataloader(config: BaseConfig):
         )
         loader = DataLoader(
             data_set, 
-            collate_fn=data_set.collete_fn,
+            collate_fn=data_set.collate_fn,
             **config.dataset[usage].loader
         )
         return loader
@@ -57,7 +57,7 @@ def main(config: BaseConfig):
     if not os.path.exists(config.model_dir):
         os.makedirs(config.model_dir)
 
-    logger = get_logger('Train AA Encoder', os.path.join(config.model_dir, 'train.log'))
+    logger = get_logger('Train MLM Encoder', os.path.join(config.model_dir, 'train.log'))
 
     if config.gpu < 0 or not torch.cuda.is_available():
         device = 'cpu'
@@ -175,7 +175,7 @@ def main(config: BaseConfig):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser("Train AA encoder with MLM task.")
+    parser = argparse.ArgumentParser("Train AA/SMILES encoder with MLM task.")
     parser.add_argument("config", type=str, help="config path")
     parser.add_argument("-u", "--update", type=kv_args, nargs='*', help="path.to.config=config_value")
     args = parser.parse_args()

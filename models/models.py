@@ -198,7 +198,7 @@ class BertEmbeddingLayerWithoutSegEmb(nn.Module):
 
     def __init__(self, config: BertConfig) -> None:
         super().__init__()
-        self.aa_embeddings = nn.Embedding(config.vocab_size, config.hidden_size)
+        self.entry_embeddings = nn.Embedding(config.vocab_size, config.hidden_size)
         self.position_embeddings = nn.Embedding(config.max_position_embeddings, config.hidden_size)
         self.layer_norm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
@@ -208,7 +208,7 @@ class BertEmbeddingLayerWithoutSegEmb(nn.Module):
 
     def forward(self, input_ids: torch.LongTensor) -> torch.Tensor:
         _, seq_len = input_ids.size()
-        inputs_embeddings = self.aa_embeddings(input_ids)
+        inputs_embeddings = self.entry_embeddings(input_ids)
         position_ids = self.position_ids[:, :seq_len]
         position_embeddings = self.position_embeddings(position_ids)
 

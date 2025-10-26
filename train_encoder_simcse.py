@@ -41,7 +41,7 @@ def get_dataloader(config: BaseConfig):
         )
         loader = DataLoader(
             data_set, 
-            collate_fn=data_set.collete_fn,
+            collate_fn=data_set.collate_fn,
             **config.dataset[usage].loader
         )
         return loader

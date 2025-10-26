@@ -44,6 +44,15 @@ def _encode_text(
                                 special_token_positions_list[-1].add(pos)
                         attention_mask_list.append(enc_res.attention_mask)
                     chunk = []
+    if len(chunk) > 0:
+        enc_results = tokenizer.encode_batch(chunk)
+        for enc_res in enc_results:
+            raw_input_ids_list.append(enc_res.ids)
+            special_token_positions_list.append(set())
+            for pos, sp_msk in enumerate(enc_res.special_tokens_mask):
+                if sp_msk == 1:
+                    special_token_positions_list[-1].add(pos)
+            attention_mask_list.append(enc_res.attention_mask)
     return raw_input_ids_list, attention_mask_list, special_token_positions_list
 
 
@@ -127,8 +136,8 @@ class SynergyDataset(Dataset):
                 n_padding = max_n_prots - len(p)
                 for i in range(n_padding):
                     attn_mask[len(p) + i] = 0
-                p += [0] * n_padding
-                w += [0.0] * n_padding
+                p = p + [0] * n_padding
+                w = w + [0.0] * n_padding
             attn_mask = [1] * 2 + attn_mask  # drug, drug, proteins
             protein_ids.append(p)
             weights.append(w)
@@ -229,7 +238,7 @@ class TextDatasetForMLM(Dataset):
             mlm_labels[pos] = input_ids[pos]
         return masked_token_ids, mlm_labels
 
-    def collete_fn(self, batch: List[Tuple]) -> Tuple[torch.Tensor]:
+    def collate_fn(self, batch: List[Tuple]) -> Tuple[torch.Tensor]:
         max_len = -1
         for masked_input_ids, _, _ in batch:
             max_len = max(max_len, len(masked_input_ids))
@@ -239,9 +248,9 @@ class TextDatasetForMLM(Dataset):
         for masked_input_ids, attn_mask, mlm_labels in batch:
             if len(masked_input_ids) < max_len:
                 n_pad = (max_len - len(masked_input_ids))
-                masked_input_ids += [self.pad_token_id] * n_pad
-                attn_mask += [0] * n_pad
-                mlm_labels += [-100] * n_pad
+                masked_input_ids = masked_input_ids + [self.pad_token_id] * n_pad
+                attn_mask = attn_mask + [0] * n_pad
+                mlm_labels = mlm_labels + [-100] * n_pad
             batch_input_ids.append(masked_input_ids)
             batch_attn_mask.append(attn_mask)
             batch_mlm_labels.append(mlm_labels)
@@ -292,8 +301,8 @@ class TextDatasetForSimCSE(Dataset):
         for input_ids, attn_mask in batch:
             if len(input_ids) < max_len:
                 n_pad = (max_len - len(input_ids))
-                input_ids += [self.pad_token_id] * n_pad
-                attn_mask += [0] * n_pad
+                input_ids = input_ids + [self.pad_token_id] * n_pad
+                attn_mask = attn_mask + [0] * n_pad
             batch_input_ids.append([input_ids, input_ids])
             batch_attn_mask.append([attn_mask, attn_mask])
         ret_dict = {

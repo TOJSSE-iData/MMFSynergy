@@ -6,11 +6,11 @@ This project is the source code of "Fusing Micro- and Macro-Scale Information to
 
 The project requires several modules as follows:
 
-- torch 1.10.0+
-- dgl 0.7+
+- torch 2.4.0
+- dgl 2.4.0+
 - PyYAML 6.0
 - rdkit 2023.3.2
-- transformers 4.28.1
+- transformers 4.57.0
 
 Use `pip3 install -r requirements.txt` to install modules.
 
@@ -19,7 +19,7 @@ Use `pip3 install -r requirements.txt` to install modules.
 
 We provided several bash scripts to run experiments.
 
-- run `python3 train_tokenizer.py configs/{protein_aa/drug_smiles}_tokenizer.yml` to train AA/SMILES tokenizers, see the code for detail arguments.
+- run `python3 train_tokenizer.py configs/{protein_aa/drug_smiles}_tokenizer.yml --train` to train AA/SMILES tokenizers, see the code for detail arguments.
 - run\_exp\_{aa/smiles}\_encoders\_{mlm/simcse}.sh: Train micro encoders using AA sequences or SMILES strings with MLM/SimCSE task.
 - run\_exp\_macro.sh: Train the macro encoder.
 - run_exp_fusion: Fuse micro and macro information to generate features.
