@@ -292,7 +292,7 @@ class TextDatasetForSimCSE(Dataset):
         attn_mask = self.attention_mask_list[index]
         return input_ids, attn_mask
 
-    def collete_fn(self, batch: List[Tuple]) -> Tuple[torch.Tensor]:
+    def collate_fn(self, batch: List[Tuple]) -> Tuple[torch.Tensor]:
         max_len = -1
         for input_ids, attn_mask in batch:
             max_len = max(max_len, len(input_ids))
