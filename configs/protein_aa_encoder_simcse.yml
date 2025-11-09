@@ -1,11 +1,11 @@
 tokenizer:
-  model_dir: output/v2/pretrain_protein/aa_tokenizer_bpe_pieces_3
+  model_dir: output/pretrain_protein/aa_tokenizer_bpe_pieces_3
   truncate: True
   max_length: 512
 dataset:
   train:
     files:
-      - data/proc/v8/pretrain_protein/aa_sequence_pieces_3.txt
+      - data/proc/pretrain_protein/aa_sequence_pieces_3.txt
     loader:
       batch_size: 64
       shuffle: True
@@ -19,7 +19,7 @@ model:
   intermediate_size: 1024
   num_attention_heads: 8
   num_hidden_layers: 6
-  vocab_size: 9689
+  vocab_size: null  # set null to use tokenizer vocab size
   pooler_type: cls_before_pooler  # "cls", "cls_before_pooler", "avg", "avg_top2", "avg_first_last"
   temperature: 0.05
 trainer:
@@ -39,5 +39,5 @@ trainer:
   max_keep: 2
   max_keep_best: 2
 gpu: 0
-pretrain_model_path: output/v2/pretrain_protein/aa_encoder_lyr3_lr0.0002_hdsz256_ir0.03/model_57000_6.2227.pt
-model_dir: output/v2/pretrain_protein/aa_encoder_simcse
+pretrain_model_path: output/pretrain_protein/aa_encoder_mlm/best.ckpt
+model_dir: output/pretrain_protein/aa_encoder_simcse

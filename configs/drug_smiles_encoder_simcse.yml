@@ -38,5 +38,5 @@ trainer:
   max_keep: 3
   max_keep_best: 3
 gpu: 0
-pretrain_model_path: output/pretrain_drug/smiles_encoder_lyr3_lr0.0002_hdsz256_ir0.03/model_121000_0.5660.pt
+pretrain_model_path: output/pretrain_drug/smiles_encoder_mlm/best.ckpt
 model_dir: output/pretrain_drug/smiles_encoder_simcse

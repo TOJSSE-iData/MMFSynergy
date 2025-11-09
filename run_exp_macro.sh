@@ -28,22 +28,12 @@ getFirstAvaiableGPU() {
 
 # #################### configs ####################
 set -e;
-N_GPU=$(getNumAvaiableGPU)
-N_GPU=3
-echo $N_GPU``
+# N_GPU=$(getNumAvaiableGPU)
+N_GPU=1
 
-synergy_type=loewe
-mdl_ver=v4
-out_ver=${mdl_ver}/2
-
-BATCH_SIZE=256
-TEST_BATCH_SIZE=$(( BATCH_SIZE * 2 ))
-
-folds=(0 1 2 3 4)
-hidden_layers=(3 2)
-lrs=(0.0002 0.0001)
-hidden_sizes=(384 256)
-warmup_steps=(3000 2000)
+hidden_layers=(2 3)
+lrs=(0.0001 0.0002)
+hidden_sizes=(128 256 384)
 
 # #################### create FIFO ####################
 tmp_fifo_file=/tmp/$$.fifo
@@ -56,42 +46,23 @@ rm ${tmp_fifo_file}
 for i in $(seq ${N_GPU}) ; do
     echo -n $(( i - 1 ))>&8
 done
-for i in $(seq ${N_GPU}) ; do
-    echo -n $(( i - 1 ))>&8
-done
-SD=0
 
 # --------------- write the for loop here ---------------
 for hidden_layer in ${hidden_layers[@]} ; do
     for lr in ${lrs[@]} ; do
         for hidden_size in ${hidden_sizes[@]} ; do
-            interm_size=$(( hidden_size * 4 ))
-            for warmup_step in ${warmup_steps[@]} ; do
-                suffix="lyr${hidden_layer}_lr${lr}_hdsz${hidden_size}_warm${warmup_step}"
-                if [[ ${hidden_size} = 128 ]] ; then
-                    init_range=0.04
-                elif [[ ${hidden_size} = 256 ]] ; then
-                    init_range=0.03
-                elif [[ ${hidden_size} = 384 ]] ; then
-                    init_range=0.025
-                fi
-                for i in "${!folds[@]}" ; do
-                    if [  -d "output/${out_ver}/${synergy_type}_${suffix}/fold${folds[i]}" ]; then
-                        continue
-                    fi
-                    {
-                        read -n 1 -u 8 gpu
-                        echo "run ${suffix}-${i} on gpu ${gpu}"
-                        python3 train_main_macro.py configs/templates/macro.yml -u \
-                            "gpu=${gpu}" \
-                            "model_dir=output/${out_ver}/${synergy_type}_${suffix}/fold${folds[i]}" \
-                            -s ${SD}
-                        echo -n ${gpu}>&8
-                    } &
-                    sleep 2
-                done
-                SD=$(( SD + 1 ))
-            done
+            {
+                read -n 1 -u 8 gpu
+                suffix="lyr${hidden_layer}_lr${lr}_hdsz${hidden_size}"
+                echo "run ${suffix} on gpu ${gpu}"
+                python3 train_macro.py configs/macro.yml -u \
+                    "trainer.optimizer.lr=${lr}" \
+                    "model.hidden_dim=${hidden_size}" \
+                    "model.num_layers=${hidden_layer}" \
+                    "gpu=${gpu}" \
+                    "model_dir=output/pretrain_macro/macro_encoder_${suffix}"
+                echo -n ${gpu}>&8
+            } & sleep 2
         done
     done
 done

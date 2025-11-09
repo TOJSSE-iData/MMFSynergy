@@ -15,6 +15,7 @@ from tokenizers import Tokenizer
 from dgl.data import DGLDataset
 from dgl import save_graphs, load_graphs
 from dgl.data.utils import save_info, load_info
+from sklearn.model_selection import train_test_split
 
 from models.utils import get_logger
 
@@ -320,28 +321,31 @@ class MacroNetDataset(DGLDataset):
         self,
         name: str,
         raw_dir: str,
-        save_dir: str = None,
-        reverse: bool = True,
-        force_reload: bool = False,
-        verbose: bool = False,
+        val_rate: float = 0.05,
+        test_rate: float = 0.05,
+        n_drug_features: int = None,
+        n_protein_features: int = None,
+        n_sideeffect_features: int = None,
         logger: logging.Logger = None,
+        **kwargs
     ):
-        if save_dir is None:
-            save_dir = raw_dir
-        self._reverse = reverse
         if logger is not None:
             self.logger = logger
         else:
             self.logger = get_logger(__name__)
+        self.val_rate = val_rate
+        self.test_rate = test_rate
+        self.n_drug_features = n_drug_features
+        self.n_protein_features = n_protein_features
+        self.n_sideeffect_features = n_sideeffect_features
+        self.pred_edge_types = ['drug2drug', 'drug2protein', 'protein2protein', 'sideeffect2drug']
         super(MacroNetDataset, self).__init__(
             name=name,
             url=None,
             raw_dir=raw_dir,
-            save_dir=save_dir,
-            force_reload=force_reload,
-            verbose=verbose
+            **kwargs
         )
-
+        
 
     def __getitem__(self, idx):
         # 通过idx得到与之对应的一个样本
@@ -351,14 +355,32 @@ class MacroNetDataset(DGLDataset):
         # 数据样本的数量
         pass
     
+    def _split_edge_data(self, g):
+        edge_splits = {}
+        for etype in self.pred_edge_types:
+            u, v = g.edges(etype=etype)
+            train_u, test_u, train_v, test_v = train_test_split(
+                u.numpy(), v.numpy(), test_size=self.test_rate
+            )
+            train_u, val_u, train_v, val_v = train_test_split(
+                train_u, train_v, test_size=self.val_rate/(1-self.test_rate)
+            )
+            edge_splits[etype] = {
+                "train": [torch.tensor(train_u), torch.tensor(train_v)],
+                "val": [torch.tensor(val_u), torch.tensor(val_v)],
+                "test": [torch.tensor(test_u), torch.tensor(test_v)]
+            }
+            self.logger.info(f"edge {etype}: train {train_u.shape[0]}, val {val_u.shape[0]}, test {test_u.shape[0]}")
+        return edge_splits
+
     def download(self):
         assert os.path.exists(os.path.join(self.raw_dir, 'drug2idx.tsv'))
         assert os.path.exists(os.path.join(self.raw_dir, 'protein2idx.tsv'))
+        assert os.path.exists(os.path.join(self.raw_dir, 'sideeffect2idx.tsv'))
         assert os.path.exists(os.path.join(self.raw_dir, 'ddi.tsv'))
         assert os.path.exists(os.path.join(self.raw_dir, 'dti.tsv'))
         assert os.path.exists(os.path.join(self.raw_dir, 'ppi.tsv'))
-        assert os.path.exists(os.path.join(self.raw_dir, 'drug_feat.npy'))
-        assert os.path.exists(os.path.join(self.raw_dir, 'protein_feat.npy'))
+        assert os.path.exists(os.path.join(self.raw_dir, 'dsi.tsv'))
     
     def process(self):
         def _load_idx_map(fn):
@@ -374,74 +396,75 @@ class MacroNetDataset(DGLDataset):
             with open(os.path.join(self.raw_dir, fn), 'r') as f:
                 next(f)
                 for line in f:
-                    e1, e2, t = line.strip().split('\t')
-                    yield x2i_1[e1], x2i_2[e2], int(t)
-
+                    ents = line.strip().split('\t')
+                    yield x2i_1[ents[0]], x2i_2[ents[1]]
+        # 加载图
         ent_maps = {
             'drug': _load_idx_map('drug2idx.tsv'),
-            'protein': _load_idx_map('protein2idx.tsv')
+            'protein': _load_idx_map('protein2idx.tsv'),
+            'sideeffect': _load_idx_map('sideeffect2idx.tsv'),
         }
         relation_fns = (
             ('drug', 'drug', 'ddi.tsv'),
             ('drug', 'protein', 'dti.tsv'),
             ('protein', 'protein', 'ppi.tsv'),
         )
+        relation_rev_fns = (
+            ('drug', 'drug', 'ddi.tsv'),
+            ('drug', 'protein', 'dti.tsv'),
+            ('protein', 'protein', 'ppi.tsv'),
+            ('drug', 'sideeffect', 'dsi.tsv'),
+        )
         hg_data = {}
-        hg_mask = {}
         for ent1, ent2, fn in relation_fns:
             rel = f'{ent1}2{ent2}'
             rel_key = (ent1, rel, ent2)
             if rel not in hg_data:
                 hg_data[rel_key] = ([], [])
-                hg_mask[rel_key] = []
-            for eid1, eid2, ds_idx in _load_net(fn, ent_maps[ent1], ent_maps[ent2]):
+            for eid1, eid2 in _load_net(fn, ent_maps[ent1], ent_maps[ent2]):
                 hg_data[rel_key][0].append(eid1)
                 hg_data[rel_key][1].append(eid2)
-                hg_mask[rel_key].append(ds_idx)
-        if self._reverse:
-            for ent1, ent2, fn in relation_fns:
-                rel = f'{ent2}2{ent1}'
-                rel_key = (ent2, rel, ent1)
-                if rel not in hg_data:
-                    hg_data[rel_key] = ([], [])
-                    hg_mask[rel_key] = []
-                for eid1, eid2, ds_idx in _load_net(fn, ent_maps[ent1], ent_maps[ent2]):
-                    hg_data[rel_key][0].append(eid2)
-                    hg_data[rel_key][1].append(eid1)
-                    hg_mask[rel_key].append(ds_idx)
-
+        for ent1, ent2, fn in relation_rev_fns:
+            rel = f'{ent2}2{ent1}'
+            rel_key = (ent2, rel, ent1)
+            if rel not in hg_data:
+                hg_data[rel_key] = ([], [])
+            for eid1, eid2 in _load_net(fn, ent_maps[ent1], ent_maps[ent2]):
+                hg_data[rel_key][0].append(eid2)
+                hg_data[rel_key][1].append(eid1)
         for k, v in hg_data.items():
             hg_data[k] = (torch.tensor(v[0]), torch.tensor(v[1]))
-            hg_mask[k] = torch.tensor(hg_mask[k], dtype=torch.int32)
-
+        # 加载特征
+        node_features = dict()
+        for ent in ['drug', 'protein', 'sideeffect']:
+            if getattr(self, f"n_{ent}_features") is None:
+                ent_feat = np.load(os.path.join(self.raw_dir, f"{ent}_feat.npy"))
+                ent_feat = np.nan_to_num(ent_feat)
+                node_features[ent] = torch.tensor(ent_feat, dtype=torch.float32)
+            else:
+                node_features[ent] = torch.randn(
+                    len(ent_maps[ent]), 256, dtype=torch.float32
+                )
+        # 建图
         g = dgl.heterograph(hg_data, idtype=torch.int32)
-        for rel_key, mask in hg_mask.items():
-            g.edges[rel_key].data['train_mask'] = (mask == 0)
-            g.edges[rel_key].data['valid_mask'] = (mask == 1)
-            g.edges[rel_key].data['test_mask'] = (mask == 2)
-        for ent in ['drug', 'protein']:
-            feat = np.load(os.path.join(self.raw_dir, f'{ent}_feat.npy'))
-            g.nodes[ent].data['feature'] = torch.from_numpy(feat).float()
-            if self.verbose:
-                self.logger.info(f"{ent} feat shape: {feat.shape}")
-        self._g = g
+        for ntype, feat in node_features.items():
+            g.nodes[ntype].data["feat"] = feat
+            self.logger.info(f"{ntype} feat shape: {feat.shape}")
+        self.g = g
+        self.edge_splits = self._split_edge_data(self.g)
 
     def __getitem__(self, idx):
-        assert idx == 0, "This dataset contains only one graph"
-        return self._g
+        return self.g, self.edge_splits
 
     def __len__(self):
         return 1
 
     def save(self):
-        graph_path = self.save_path + '.bin'
-        save_graphs(graph_path, [self._g])
+        graph_path = os.path.join(self._save_dir, 'hetero_graph.bin')
+        save_graphs(graph_path, [self.g])
 
     def load(self):
-        graph_path = self.save_path + '.bin'
+        graph_path = os.path.join(self._save_dir, 'hetero_graph.bin')
         graphs, _ = load_graphs(graph_path)
-        self._g = graphs[0]
-
-    def has_cache(self):
-        graph_path = self.save_path + '.bin'
-        return os.path.exists(graph_path)
+        self.g = graphs[0]
+        self.edge_splits = self._split_edge_data(self.g)

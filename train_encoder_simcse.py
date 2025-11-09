@@ -165,24 +165,6 @@ def main(config: BaseConfig):
         #     break
         logger.info(f"Epoch {epc:03d} | Train Loss: {train_loss:.4f}")
     logger.info("Finish training.")
-    
-    # # load best model
-    # best_model_ckpt = torch.load(ckpts_by_loss[0][0])
-    # model.load_state_dict(best_model_ckpt['model_state_dict'])
-
-    # # run testing
-    # logger.info("Start testing.")
-    # with torch.no_grad():
-    #     model.eval()
-    #     test_loss = 0
-    #     for test_batch in test_loader:
-    #         test_batch = {k: v.to(device) for k, v in test_batch.items()}
-    #         model_output = model(**test_batch)
-    #         test_loss += model_output.loss.item() * test_batch['labels'].size()[0]
-    #     test_loss /= len(test_loader.dataset)
-    # logger.info(f"Test Loss: {test_loss:.4f}")
-    # logger.info("Finish testing.")
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser("Train AA encoder with SimCSE task.")

@@ -3,7 +3,7 @@ from typing import Optional, List, Tuple
 import torch
 import torch.nn as nn
 import numpy as np
-from typing import *
+from typing import Dict, List, Tuple, Union
 
 from transformers.models.bert.modeling_bert import (
     BertEncoder,
@@ -18,9 +18,9 @@ from transformers.models.bert.modeling_bert import (
 import torch.nn.functional as thfn
 import dgl
 
-from typing import Dict, List, Tuple, Union
 
-from dgl.nn import GATConv
+
+from dgl.nn.pytorch import GATConv, HeteroGraphConv
 from collections import defaultdict
 
 
@@ -564,191 +564,128 @@ class AutoEncoder(nn.Module):
             return enc, dec
         return enc
 
+class HANLayer(nn.Module):
 
-class HANSemanticAttnLayer(nn.Module):
+    def __init__(
+        self, 
+        in_dim: int = 128,
+        hidden_dim: int = 128,
+        num_heads: int = 8,
+        dropout: float = 0.4
+    ):
+        super().__init__()
+        self.in_dim = in_dim
+        self.hidden_dim = hidden_dim
+        self.num_heads = num_heads
+        self.dropout = dropout
 
-    def __init__(self, dim_in: int, dim_hidden: int = 256):
-        super(HANSemanticAttnLayer, self).__init__()
-        self.project = nn.Sequential(
-            nn.Linear(dim_in, dim_hidden),
+        self.node_attn = HeteroGraphConv({
+            "drug2drug": GATConv(in_dim, hidden_dim//num_heads, num_heads=num_heads, feat_drop=dropout),
+            "drug2protein": GATConv(in_dim, hidden_dim//num_heads, num_heads=num_heads, feat_drop=dropout),
+            "protein2drug": GATConv(in_dim, hidden_dim//num_heads, num_heads=num_heads, feat_drop=dropout),
+            "protein2protein": GATConv(in_dim, hidden_dim//num_heads, num_heads=num_heads, feat_drop=dropout),
+            "sideeffect2drug": GATConv(in_dim, hidden_dim//num_heads, num_heads=num_heads, feat_drop=dropout),
+        }, aggregate="stack")
+
+        self.semantic_attn = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),
             nn.Tanh(),
-            nn.Linear(dim_hidden, 1, bias=False)
+            nn.Linear(hidden_dim, 1),
+            nn.Softmax(dim=1)
         )
 
-    def reset_parameters(self):
-        reset_linear_in_seq(self.project)
+    def forward(self, g, h):
+        node_feats = self.node_attn(g, h)  # {ntype: feat}, N, R, H, D
+        out_h = {}
+        for ntype, feats in node_feats.items():
+            feats = feats.view(feats.size(0), feats.size(1), -1)
+            sem_weights = self.semantic_attn(feats)  # N, R, 1
+            aggregated = (feats * sem_weights).sum(dim=1) # N, H*D
+            out_h[ntype] = aggregated
+        return out_h
 
-    def forward(self, z: torch.Tensor):
-        w = self.project(z)          # N, M, 1
-        beta = torch.softmax(w, dim=1)  # N, M, 1
-        return torch.sum(beta * z, 1)   # N, H * K
-
-
-class CGMSHANLayer(nn.Module):
+class MacroEncoder(nn.Module):
 
     def __init__(
         self,
-        drug_dim_in: int,
-        cell_dim_in: int,
-        dim_out: int,
-        n_head: int = 4,
-        dpr_feat: float = 0.2,
-        dpr_attn: float = 0.2,
+        in_dims: Dict[str, int],
+        hidden_dim: int = 128,
+        num_layers: int = 2,
+        num_heads: int = 8,
+        dropout: float = 0.4,
+        etypes: List[str] = ['drug2drug', 'drug2protein', 'protein2protein', 'sideeffect2drug']
     ):
-        super(CGMSHANLayer, self).__init__()
-        self.dim_ins = {
-            'd': drug_dim_in,
-            'c': cell_dim_in
-        }
-        self.meta_paths = self.get_metapaths()
-        self.n_head = n_head
-        self.dim_out = dim_out
-        # c->c could be calc without gat
+        super().__init__()
+        self.hidden_dim = hidden_dim
+        self.num_layers = num_layers
+        
+        # 节点特征投影层（统一输入维度）
+        self.proj_layers = nn.ModuleDict({
+            ntype: nn.Linear(in_dim, hidden_dim) 
+            for ntype, in_dim in in_dims.items()
+        })
+        
+        self.hans = nn.ModuleList([
+            HANLayer(hidden_dim, hidden_dim, num_heads, dropout)
+            for _ in range(num_layers)
+        ])
 
-        self.gat_layers = nn.ModuleDict()
-        for mp in self.meta_paths[:-1]:
-            if mp[0] == mp[-1]:
-                in_feats = self.dim_ins[mp[0]]
-            else:
-                in_feats = (self.dim_ins[mp[0]], self.dim_ins[mp[-1]])
-            self.gat_layers[mp] = GATConv(
-                in_feats=in_feats, out_feats=dim_out, num_heads=n_head,
-                feat_drop=dpr_feat, attn_drop=dpr_attn, activation=thfn.leaky_relu
-            )
-        self.fc_c2c = nn.Linear(self.dim_ins['c'], self.dim_out * n_head)
-        self.semantic_attn = nn.ModuleDict({
-            'd': HANSemanticAttnLayer(self.dim_out * self.n_head, 256),
-            'c': HANSemanticAttnLayer(self.dim_out * self.n_head, 256)
+        self.link_pred_heads = nn.ModuleDict({
+            etype: nn.Sequential(
+                nn.Linear(2 * hidden_dim, 256),
+                nn.ReLU(),
+                nn.Linear(256, 1),
+                nn.Sigmoid()
+            ) for etype in etypes
         })
 
-    @staticmethod
-    def get_metapaths():
-        return ('d2d', 'd2c', 'c2d', 'c2c')
-
-    @staticmethod
-    def get_graph_by_metapath(metapath: str, n_drugs: int = 2) -> dgl.DGLGraph:
-        if metapath not in CGMSHANLayer.get_metapaths()[:-1]:
-            raise NotImplementedError(f'unsupported metapath {metapath}')
-        src_nodes = []
-        dst_nodes = []
-        if metapath == 'd2d':
-            for i in range(n_drugs):
-                src_nodes.extend([i] * n_drugs)
-                dst_nodes.extend(range(n_drugs))
-            g = dgl.graph((torch.tensor(src_nodes), torch.tensor(dst_nodes)))
-            return g
-        if metapath == 'd2c':
-            src_nodes.extend(range(n_drugs))
-            dst_nodes.extend([0] * n_drugs)
-        else:
-            src_nodes.extend([0] * n_drugs)
-            dst_nodes.extend(range(n_drugs))
-        g_dict = {(metapath[0], metapath, metapath[-1]): (torch.tensor(src_nodes), torch.tensor(dst_nodes))}
-        g = dgl.heterograph(g_dict)
-        return g
-
-    def reset_parameters(self):
-        reset_linear(self.fc_c2c)
-        for k in self.gat_layers:
-            self.gat_layers[k].reset_parameters()
-        for k in self.semantic_attn:
-            self.semantic_attn[k].reset_parameters()
-
-    def forward(
-        self,
-        graphs: Dict[Tuple[str, str], dgl.DGLGraph],
-        feats: Dict[str, torch.Tensor]
-    ):
-        gat_outs = defaultdict(list)
-        for mp in self.meta_paths[:-1]:
-            g = graphs[mp]
-            if mp[0] == mp[-1]:
-                feat = feats[mp[0]]
-            else:
-                feat = (feats[mp[0]], feats[mp[-1]])
-            out = self.gat_layers[mp](g, feat)  # N, K, H
-            out = out.flatten(1)                # N, K * H
-            gat_outs[mp[-1]].append(out)
-        gat_outs['c'].append(thfn.leaky_relu(self.fc_c2c(feats['c'])))
-        hgat_outs = {}
-        for e in ['d', 'c']:
-            semantic_embeddings = torch.stack(gat_outs[e], dim=1)       # N, M, K * H
-            hgat_outs[e] = self.semantic_attn[e](semantic_embeddings)  # N, K * H
-        return hgat_outs
-
-
-class CGMS(nn.Module):
-
-    def __init__(
-        self,
-        # dae, cae,
-        drug_dim_in: int,
-        cell_dim_in: int,
-        dim_hidden: int,
-        n_head: int = 8,
-        n_layer: int = 3,
-        drop_out = 0.5,
-    ) -> None:
-        super(CGMS, self).__init__()
-        # self.drug_ae = dae
-        # self.cell_ae = cae
-        self.drug_dim_in = drug_dim_in
-        self.cell_dim_in = cell_dim_in
-        self.dim_hidden = dim_hidden
-        self.n_head = n_head
-        self.hans = nn.ModuleList()
-        self.hans.append(CGMSHANLayer(
-            self.drug_dim_in, self.cell_dim_in, self.dim_hidden, self.n_head
-        ))
-        han_out_dim = self.dim_hidden * self.n_head
-        for _ in range(n_layer - 1):
-            self.hans.append(CGMSHANLayer(
-                han_out_dim, han_out_dim, self.dim_hidden, self.n_head
-            ))
-        self.task_heads = nn.ModuleDict()
-        self.task_heads['syn'] = nn.Sequential(
-            nn.Linear(han_out_dim, han_out_dim // 2),
-            nn.ReLU(),
-            nn.Dropout(drop_out),
-            nn.Linear(han_out_dim // 2, 1),
-        )
-        self.task_heads['sen'] = nn.Sequential(
-            nn.Linear(han_out_dim, han_out_dim // 2),
-            nn.ReLU(),
-            nn.Dropout(drop_out),
-            nn.Linear(han_out_dim // 2, 1),
-        )
-        self.reset_parameters()
-    
-    @staticmethod
-    def get_metapaths() -> Tuple[str]:
-        return CGMSHANLayer.get_metapaths()
-
-    @staticmethod
-    def get_graph_by_metapath(metapath: str, n_drugs: int = 2) -> dgl.DGLGraph:
-        return CGMSHANLayer.get_graph_by_metapath(metapath, n_drugs)
-
-    def reset_parameters(self) -> None:
-        for layer in self.hans:
-            layer.reset_parameters()
-        for k in self.task_heads:
-            reset_linear_in_seq(self.task_heads[k])
-
-    def forward(
-        self,
-        graphs: Dict[Tuple[str, str], dgl.DGLGraph],
-        feats: Dict[str, torch.Tensor],
-        task: str
-    ):
-        if task not in ['syn', 'sen']:
-            raise ValueError(f'Unsupported task type: {task}')
-        # dc_feats = {
-        #     'd': self.drug_ae(feats['d'], False),
-        #     'c': self.cell_ae(feats['c'], False)
-        # }
-        # feats = dc_feats
+    def forward(self, g):
+        raw_h = {
+            ntype: self.proj_layers[ntype](g.nodes[ntype].data["feat"]) 
+            for ntype in g.ntypes
+        }
+        h = raw_h
         for han in self.hans:
-            feats = han(graphs, feats)
-        whole_graph_emb = feats['c']
-        out = self.task_heads[task](whole_graph_emb)
-        return out
+            h  = han(g, h)
+            for ntype, feat in raw_h.items():
+                if ntype not in h:
+                    h[ntype] = feat
+        return h
+
+    def link_pred_loss(self, h, edge_splits, etype, split="train"):
+        u, v = edge_splits[etype][split]
+        src_ntype, dst_ntype = etype.split('2')
+        u_feat = h[src_ntype][u]
+        v_feat = h[dst_ntype][v]
+        concat_feat = torch.cat([u_feat, v_feat], dim=1)
+        pred = self.link_pred_heads[etype](concat_feat) 
+
+        pos_labels = torch.ones_like(pred)
+        neg_u, neg_v = self._negative_sampling(u, v, h[src_ntype].shape[0], h[dst_ntype].shape[0])
+        neg_u_feat = h[src_ntype][neg_u]
+        neg_v_feat = h[dst_ntype][neg_v]
+        neg_concat = torch.cat([neg_u_feat, neg_v_feat], dim=1)
+        neg_pred = self.link_pred_heads[etype](neg_concat)
+        neg_labels = torch.zeros_like(neg_pred)
+
+        all_pred = torch.cat([pred, neg_pred], dim=0)
+        all_labels = torch.cat([pos_labels, neg_labels], dim=0)
+        loss = thfn.binary_cross_entropy(all_pred, all_labels)
+        return loss
+
+    def _negative_sampling(self, u, v, num_src_nodes, num_dst_nodes, neg_ratio=1):
+        num_pos = u.shape[0]
+        num_neg = num_pos * neg_ratio
+
+        neg_u = torch.randint(0, num_src_nodes, (num_neg,), device=u.device)
+        neg_v = torch.randint(0, num_dst_nodes, (num_neg,), device=v.device)
+
+        pos_set = set(zip(u.cpu().numpy(), v.cpu().numpy()))
+        neg_set = set()
+        for nu, nv in zip(neg_u.cpu().numpy(), neg_v.cpu().numpy()):
+            if (nu, nv) not in pos_set:
+                neg_set.add((nu, nv))
+            if len(neg_set) == num_neg:
+                break
+        neg_u, neg_v = zip(*neg_set)
+        return torch.tensor(neg_u, device=u.device), torch.tensor(neg_v, device=v.device)
