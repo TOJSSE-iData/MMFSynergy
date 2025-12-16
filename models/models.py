@@ -689,3 +689,26 @@ class MacroEncoder(nn.Module):
                 break
         neg_u, neg_v = zip(*neg_set)
         return torch.tensor(neg_u, device=u.device), torch.tensor(neg_v, device=v.device)
+
+class FusionModel(nn.Module):
+
+    def __init__(self, micro_dim: int, macro_dim: int, hidden_size: int = 128, dropout: float = 0.4):
+        super().__init__()
+        self.micro_proj = nn.Linear(micro_dim, hidden_size)
+        self.macro_proj = nn.Linear(macro_dim, hidden_size)
+        self.classifier = nn.Sequential(
+            nn.Linear(hidden_size * 2, hidden_size),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_size, 1),
+            nn.Sigmoid()
+        )
+
+    def forward(self, micro_feat: torch.Tensor, macro_feat: torch.Tensor, ret_prob: bool = True) -> torch.Tensor:
+        micro_proj = self.micro_proj(micro_feat)
+        macro_proj = self.macro_proj(macro_feat)
+        fused_feat = torch.cat([micro_proj, macro_proj], dim=1)
+        if ret_prob:
+            prob = self.classifier(fused_feat)
+            return fused_feat, prob
+        return fused_feat, None

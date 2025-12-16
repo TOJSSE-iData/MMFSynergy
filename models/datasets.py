@@ -56,6 +56,37 @@ def _encode_text(
             attention_mask_list.append(enc_res.attention_mask)
     return raw_input_ids_list, attention_mask_list, special_token_positions_list
 
+def _encode_text_v2(
+    texts: List[str],
+    tokenizer: Tokenizer,
+    chunk_size: int
+) -> Tuple[List[List[int]], List[List[int]], List[List[int]]]:
+    raw_input_ids_list = []
+    attention_mask_list = []
+    special_token_positions_list = []
+    chunk = []
+    for text in texts:
+        chunk.append(text.strip())
+        if len(chunk) == chunk_size:
+            enc_results = tokenizer.encode_batch(chunk)
+            for enc_res in enc_results:
+                raw_input_ids_list.append(enc_res.ids)
+                special_token_positions_list.append(set())
+                for pos, sp_msk in enumerate(enc_res.special_tokens_mask):
+                    if sp_msk == 1:
+                        special_token_positions_list[-1].add(pos)
+                attention_mask_list.append(enc_res.attention_mask)
+            chunk = []
+    if len(chunk) > 0:
+        enc_results = tokenizer.encode_batch(chunk)
+        for enc_res in enc_results:
+            raw_input_ids_list.append(enc_res.ids)
+            special_token_positions_list.append(set())
+            for pos, sp_msk in enumerate(enc_res.special_tokens_mask):
+                if sp_msk == 1:
+                    special_token_positions_list[-1].add(pos)
+            attention_mask_list.append(enc_res.attention_mask)
+    return raw_input_ids_list, attention_mask_list, special_token_positions_list
 
 class SynergyDataset(Dataset):
 
@@ -346,7 +377,6 @@ class MacroNetDataset(DGLDataset):
             **kwargs
         )
         
-
     def __getitem__(self, idx):
         # 通过idx得到与之对应的一个样本
         pass
@@ -468,3 +498,89 @@ class MacroNetDataset(DGLDataset):
         graphs, _ = load_graphs(graph_path)
         self.g = graphs[0]
         self.edge_splits = self._split_edge_data(self.g)
+
+
+class MicroInferDataset(Dataset):
+
+    def __init__(
+        self,
+        indices: List[int],
+        texts: List[str],
+        tokenizer: Tokenizer,
+        special_tokens: Dict[str, int],
+        vocab_size: int,
+        chunk_size: int = 1000
+    ) -> None:
+        super().__init__()
+        self.indices = indices
+        self.texts = texts
+
+        raw_input_ids_list, attention_mask_list, _ = \
+            _encode_text_v2(texts, tokenizer, chunk_size)
+        self.tokenizer = tokenizer
+        self.raw_input_ids_list = raw_input_ids_list
+        self.attention_mask_list = attention_mask_list
+
+        self.pad_token_id = special_tokens['PAD_TOKEN']
+        self.special_token_ids = special_tokens.values()
+        
+        self.vocab_size = vocab_size
+    
+    def __len__(self):
+        return len(self.raw_input_ids_list)
+    
+    def __getitem__(self, index: int) -> Tuple[List[int], List[int]]:
+        input_ids = self.raw_input_ids_list[index]
+        attn_mask = self.attention_mask_list[index]
+        return  self.indices[index], input_ids, attn_mask
+
+    def collate_fn(self, batch: List[Tuple]) -> Tuple[torch.Tensor]:
+        max_len = -1
+        for _, input_ids, _ in batch:
+            max_len = max(max_len, len(input_ids))
+        batch_input_ids = []
+        batch_attn_mask = []
+        batch_indices = []
+        for idx, input_ids, attn_mask in batch:
+            if len(input_ids) < max_len:
+                n_pad = (max_len - len(input_ids))
+                input_ids = input_ids + [self.pad_token_id] * n_pad
+                attn_mask = attn_mask + [0] * n_pad
+            batch_input_ids.append(input_ids)
+            batch_attn_mask.append(attn_mask)
+            batch_indices.append(idx)
+        ret_dict = {
+            "sample_indices": batch_indices,
+            "input_ids": torch.LongTensor(batch_input_ids),
+            "attention_mask": torch.LongTensor(batch_attn_mask),
+        }
+        return ret_dict
+
+
+class FusionDataset(Dataset):
+
+    def __init__(self, idx_list: list, micro_feats: torch.Tensor, macro_feats: torch.Tensor):
+        self.idx_list = idx_list
+        self.micro_feats = micro_feats
+        self.macro_feats = macro_feats
+        self.n_samples = len(idx_list)
+
+    def __len__(self) -> int:
+        return self.n_samples
+
+    def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
+        current_idx = self.idx_list[idx]
+        micro_feat = self.micro_feats[current_idx]
+        macro_feat = self.macro_feats[current_idx]
+
+        neg_idx = np.random.choice([i for i in self.idx_list if i != current_idx])
+        neg_macro_feat = self.macro_feats[neg_idx]
+        
+        return {
+            "pos_micro": micro_feat.float(),
+            "pos_macro": macro_feat.float(),
+            "pos_label": torch.tensor(1, dtype=torch.float32),
+            "neg_micro": micro_feat.float(),
+            "neg_macro": neg_macro_feat.float(),
+            "neg_label": torch.tensor(0, dtype=torch.float32)
+        }

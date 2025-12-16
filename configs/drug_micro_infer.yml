@@ -1,0 +1,13 @@
+tokenizer:
+  model_dir: output/pretrain_drug/smiles_tokenizer_bpe
+  truncate: True
+  max_length: 256
+dataset: data/proc/fuse/drug_micro_macro.csv
+text: smiles
+save_path: output/fuse/drug_micro_feat.pth
+loader:
+    batch_size: 128
+    shuffle: True
+    pin_memory: True
+pretrain_model_path: output/pretrain_drug/smiles_encoder_simcse/best.ckpt
+gpu: 0

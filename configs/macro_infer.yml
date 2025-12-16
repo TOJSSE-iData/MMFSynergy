@@ -1,0 +1,17 @@
+save_path: 
+  drug: output/fuse/drug_macro_feat.pth
+  protein : output/fuse/protein_macro_feat.pth
+dataset:
+  name: heterograph
+  raw_dir: data/proc/pretrain_macro/
+  val_rate: 0.05
+  test_rate: 0.05
+  n_protein_features: 256
+  n_sideeffect_features: 256
+model:
+  num_layers: 2
+  hidden_dim: 128
+  num_heads: 8
+  dropout: 0.2
+gpu: 0
+pretrain_model_path: output/pretrain_macro/macro_encoder/best.ckpt

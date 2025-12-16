@@ -1,0 +1,13 @@
+tokenizer:
+  model_dir: output/pretrain_protein/aa_tokenizer_bpe_pieces_3
+  truncate: True
+  max_length: 512
+dataset: data/proc/fuse/protein_micro_macro.csv
+text: aa_sequence
+save_path: output/fuse/protein_micro_feat.pth
+loader:
+    batch_size: 64
+    shuffle: True
+    pin_memory: True
+pretrain_model_path: output/pretrain_protein/aa_encoder_simcse/best.ckpt
+gpu: 0
